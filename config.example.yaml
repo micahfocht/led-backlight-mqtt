@@ -1,0 +1,122 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# led-backlight-mqtt — example configuration
+#
+# Copy this file to config.yaml and edit for your environment.
+# Sensitive values (MQTT password, etc.) can be set via environment variables
+# using the ${ENV_VAR} syntax — e.g. password: ${MQTT_PASSWORD}
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ---------------------------------------------------------------------------
+# Global defaults — can be overridden per-input or per-output
+# ---------------------------------------------------------------------------
+global:
+  # Maximum frames per second to analyze per input.
+  # Lower values reduce CPU load; higher values improve responsiveness.
+  # 30 is a good default for Raspberry Pi 5 with 2 capture cards.
+  max_fps: 30
+
+  # Resolution to which each captured frame is downscaled before edge
+  # analysis.  Smaller = faster; 320x180 retains enough color information
+  # for ambilight-style sampling.
+  analysis_resolution: [320, 180]
+
+  # Border strip depth as a fraction of the shorter frame dimension.
+  # 0.08 = 8% — e.g. 14px on a 180px-tall analysis frame.
+  border_pct: 0.08
+
+# ---------------------------------------------------------------------------
+# MQTT broker (used for Home Assistant discovery)
+# ---------------------------------------------------------------------------
+mqtt:
+  host: 192.168.1.10
+  port: 1883
+  username: mqtt_user
+  password: ${MQTT_PASSWORD}      # or plain string
+  # Prefix used by Home Assistant for MQTT discovery.
+  discovery_prefix: homeassistant
+  # Client ID — must be unique per broker connection.
+  client_id: led-backlight
+
+# ---------------------------------------------------------------------------
+# Physical capture devices
+# ---------------------------------------------------------------------------
+capture_devices:
+  # ── Single-stream card (one TV source) ────────────────────────────────────
+  - id: living_room_card
+    # V4L2 device path or integer index (0, 1, 2 …)
+    device: /dev/video0
+    # FOURCC format.  MJPG recommended — lower USB bandwidth, hardware-decoded.
+    # Alternatives: YUYV (raw, higher bandwidth)
+    fourcc: MJPG
+    width: 1920
+    height: 1080
+    fps: 30
+    # single  — the full frame is one source
+    # quadrant — the frame contains 4 sub-images (2×2 grid)
+    mode: single
+
+  # ── Quadrant card (four sources in one frame) ─────────────────────────────
+  - id: quad_card
+    device: /dev/video2
+    fourcc: MJPG
+    width: 1920
+    height: 1080
+    fps: 30
+    mode: quadrant
+
+# ---------------------------------------------------------------------------
+# Logical inputs  (what the WLED outputs can be pointed at)
+# ---------------------------------------------------------------------------
+inputs:
+  # Single-stream input
+  - id: living_room
+    source_device: living_room_card
+    quadrant: ~               # null for single-mode devices
+
+  # Four inputs from a quadrant card
+  - id: bedroom_tv
+    source_device: quad_card
+    quadrant: top_left        # top_left | top_right | bottom_left | bottom_right
+
+  - id: office_tv
+    source_device: quad_card
+    quadrant: top_right
+
+  - id: kitchen_tv
+    source_device: quad_card
+    quadrant: bottom_left
+
+  - id: guest_tv
+    source_device: quad_card
+    quadrant: bottom_right
+
+  # Per-input overrides (both optional — omit to inherit global defaults)
+  # - id: high_motion_source
+  #   source_device: living_room_card
+  #   quadrant: ~
+  #   max_fps: 60
+  #   analysis_resolution: [160, 90]
+
+# ---------------------------------------------------------------------------
+# WLED outputs
+# ---------------------------------------------------------------------------
+wled_outputs:
+  - id: tv1
+    # IP or hostname of the WLED device
+    host: 192.168.1.50
+    # LED count.  Set to null (or omit) to auto-fetch from WLED /json/info.
+    # Set explicitly if the device is unreachable at startup.
+    led_count: ~
+    # Default brightness (0–255).  Controllable via Home Assistant.
+    brightness: 200
+    # Default input to use at startup.
+    input: living_room
+    # Per-output border_pct override (optional — omit to use global default)
+    border_pct: ~
+
+  - id: tv2
+    host: 192.168.1.51
+    led_count: 84             # explicit count — skips HTTP fetch
+    brightness: 180
+    input: bedroom_tv
+    border_pct: ~

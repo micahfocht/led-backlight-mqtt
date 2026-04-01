@@ -1,0 +1,19 @@
+# Runtime dependencies
+# ─────────────────────────────────────────────────────────────────────────────
+# On Raspberry Pi 5 (aarch64 / Raspberry Pi OS Bookworm):
+#   Do NOT pip-install opencv-python-headless.
+#   Instead, build OpenCV from source with NEON optimisation:
+#       bash scripts/build_opencv.sh
+#   The resulting system install will be picked up automatically.
+#
+# On all other platforms (x86_64 dev machines, CI):
+#   opencv-python-headless is installed automatically via pyproject.toml.
+# ─────────────────────────────────────────────────────────────────────────────
+
+pydantic>=2.0
+pyyaml>=6.0
+paho-mqtt>=2.0
+numpy>=1.26
+
+# Non-Pi only — see note above
+opencv-python-headless>=4.9

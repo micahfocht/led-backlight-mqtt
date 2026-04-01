@@ -1,0 +1,40 @@
+[Unit]
+Description=LED Backlight MQTT Controller
+Documentation=https://github.com/your-org/led-backlight-mqtt
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=led-backlight
+Group=led-backlight
+
+# Adjust path to your config file
+ExecStart=/usr/local/bin/led-backlight --config /etc/led-backlight/config.yaml
+
+# Restart on failure with a short delay to avoid hammering the broker
+Restart=on-failure
+RestartSec=5s
+
+# Give capture devices time to be available after boot
+ExecStartPre=/bin/sleep 2
+
+# Environment — alternative to embedding credentials in config.yaml
+# EnvironmentFile=/etc/led-backlight/env
+
+# Logging goes to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=led-backlight
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Allow access to V4L2 devices
+DeviceAllow=/dev/video* rw
+SupplementaryGroups=video
+
+[Install]
+WantedBy=multi-user.target

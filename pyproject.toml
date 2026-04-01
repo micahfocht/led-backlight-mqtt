@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "led-backlight-mqtt"
+version = "0.1.0"
+description = "TV LED ambilight controller using WLED, UVC capture cards, and Home Assistant MQTT discovery"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "paho-mqtt>=2.0",
+    "numpy>=1.26",
+    # opencv-python-headless is the fallback for non-Pi environments.
+    # On Raspberry Pi 5, build OpenCV from source using scripts/build_opencv.sh
+    # for NEON SIMD acceleration.  The system install will shadow this package.
+    "opencv-python-headless>=4.9; platform_machine != 'aarch64'",
+]
+
+[project.scripts]
+led-backlight = "led_backlight.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["led_backlight*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
