@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
 import threading
 from typing import Callable, Optional
 
@@ -108,9 +109,16 @@ class MqttManager:
             self._light_cmd_topics[self._light_set_topic(o.id)]  = o.id
             self._input_cmd_topics[self._input_set_topic(o.id)]  = o.id
 
-        # Paho client
+        # Make the client_id unique per host so two instances on different
+        # machines never trigger broker-side session takeover of each other.
+        hostname = socket.gethostname().split(".")[0]  # short hostname only
+        unique_client_id = f"{mc.client_id}-{hostname}"
+        log.debug("MQTT client_id: %s", unique_client_id)
+
+        # Paho client — use callback API v2 to avoid deprecation warnings
         self._client = mqtt.Client(
-            client_id=mc.client_id,
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            client_id=unique_client_id,
             protocol=mqtt.MQTTv5,
         )
         if mc.username:
@@ -172,9 +180,9 @@ class MqttManager:
     # Paho callbacks
     # ------------------------------------------------------------------
 
-    def _on_connect(self, client, userdata, flags, rc, properties=None) -> None:
-        if rc != 0:
-            log.error("MQTT connect failed, rc=%s", rc)
+    def _on_connect(self, client, userdata, connect_flags, reason_code, properties) -> None:
+        if reason_code != 0:
+            log.error("MQTT connect failed, reason_code=%s", reason_code)
             return
         log.info("MQTT connected to %s:%d", self._host, self._port)
         self._publish_discovery()
@@ -184,9 +192,9 @@ class MqttManager:
             self.publish_light_state(output_id)
             self.publish_input_state(output_id)
 
-    def _on_disconnect(self, client, userdata, rc, properties=None) -> None:
-        if rc != 0:
-            log.warning("MQTT unexpectedly disconnected (rc=%s) — will reconnect", rc)
+    def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties) -> None:
+        if reason_code != 0:
+            log.warning("MQTT unexpectedly disconnected (reason_code=%s) — will reconnect", reason_code)
 
     def _on_message(self, client, userdata, msg: mqtt.MQTTMessage) -> None:
         topic   = msg.topic
