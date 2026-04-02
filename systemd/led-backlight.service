@@ -36,8 +36,9 @@ ProtectSystem=strict
 # Tighten by moving the venv to /opt if desired.
 ProtectHome=false
 PrivateTmp=true
-# Allow access to V4L2 devices
-DeviceAllow=/dev/video* rw
+# Access to V4L2 devices is granted via the 'video' group (SupplementaryGroups=video).
+# DeviceAllow is intentionally omitted: systemd's path-glob matching for
+# DeviceAllow does not work reliably with /dev/video* on all kernels.
 SupplementaryGroups=video
 
 [Install]
