@@ -9,8 +9,10 @@ Type=simple
 User=led-backlight
 Group=led-backlight
 
-# Adjust path to your config file
-ExecStart=/usr/local/bin/led-backlight --config /etc/led-backlight/config.yaml
+# Path to the virtual environment Python interpreter.
+# Adjust VENV_PYTHON if the venv is in a different location.
+Environment=VENV_PYTHON=/home/micahfocht/led-backlight-mqtt/.venv/bin/python3
+ExecStart=/home/micahfocht/led-backlight-mqtt/.venv/bin/python3 -m led_backlight --config /etc/led-backlight/config.yaml
 
 # Restart on failure with a short delay to avoid hammering the broker
 Restart=on-failure
@@ -30,7 +32,9 @@ SyslogIdentifier=led-backlight
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=true
+# ProtectHome must be off because the venv lives in the home directory.
+# Tighten by moving the venv to /opt if desired.
+ProtectHome=false
 PrivateTmp=true
 # Allow access to V4L2 devices
 DeviceAllow=/dev/video* rw
