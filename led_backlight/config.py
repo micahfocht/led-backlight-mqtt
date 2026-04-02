@@ -90,6 +90,14 @@ class CaptureDeviceConfig(BaseModel):
         # Allow integer-string device indices ("0", "1") from YAML
         if isinstance(self.device, str) and self.device.isdigit():
             self.device = int(self.device)
+        # Convert /dev/videoN paths to integer indices.
+        # OpenCV's V4L2 backend does not support opening by device path;
+        # it requires an integer index derived from the device node number.
+        elif isinstance(self.device, str):
+            import re as _re
+            m = _re.fullmatch(r"/dev/video(\d+)", self.device)
+            if m:
+                self.device = int(m.group(1))
         return self
 
 
