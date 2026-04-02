@@ -3,8 +3,8 @@
 # build_opencv.sh — Build OpenCV from source on Raspberry Pi 5
 #                   with NEON SIMD and libjpeg-turbo acceleration.
 #
-# Tested on: Raspberry Pi 5, Raspberry Pi OS 64-bit (Bookworm, Trixie)
-# Build time: ~45 minutes on Pi 5 (all 4 cores)
+# Tested on: Raspberry Pi 5, Raspberry Pi OS 64-bit (Trixie)
+# Build time: ~15 minutes on Pi 5 (all 4 cores)
 #
 # Usage:
 #   bash scripts/build_opencv.sh
@@ -99,7 +99,7 @@ cmake \
     ..
 
 # ── 4. Build ──────────────────────────────────────────────────────────────────
-echo "[4/6] Building (using ${NPROC} cores — ~45 min on Pi 5)..."
+echo "[4/6] Building (using ${NPROC} cores — ~15 min on Pi 5)..."
 make -j"${NPROC}"
 
 # ── 5. Install ────────────────────────────────────────────────────────────────
