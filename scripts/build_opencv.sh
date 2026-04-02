@@ -104,21 +104,12 @@ make -j"${NPROC}"
 
 # ── 5. Install ────────────────────────────────────────────────────────────────
 echo "[5/6] Installing to /usr/local..."
+# Remove any stale cv2 installation from previous runs that may have landed in
+# the wrong location, which would shadow the correct install and break imports.
+sudo rm -rf /usr/lib/python3/dist-packages/cv2
+sudo rm -f /usr/lib/python3/dist-packages/opencv4.pth
 sudo make install
 sudo ldconfig
-
-# On Debian Trixie, /usr/local/lib/python3.x/dist-packages is not on sys.path
-# by default.  Drop a .pth file into the system dist-packages so every Python
-# invocation (interactive, systemd service, etc.) can find cv2 without any
-# extra environment setup.
-CV2_SITE="/usr/local/lib/python${PYTHON_VERSION}/dist-packages"
-PTH_TARGET="/usr/lib/python3/dist-packages/opencv4.pth"
-if [ -d "${CV2_SITE}" ]; then
-    echo "${CV2_SITE}" | sudo tee "${PTH_TARGET}" > /dev/null
-    echo "  Added ${PTH_TARGET} → ${CV2_SITE}"
-else
-    echo "  Warning: expected cv2 site-packages not found at ${CV2_SITE}"
-fi
 
 # ── 6. Verify ─────────────────────────────────────────────────────────────────
 echo "[6/6] Verifying installation..."
