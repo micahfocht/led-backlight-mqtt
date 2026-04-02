@@ -21,6 +21,8 @@ OPENCV_VERSION="4.9.0"
 BUILD_DIR="${HOME}/opencv_build"
 PYTHON_BIN="$(which python3)"
 PYTHON_VERSION="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+# Install cv2 into the standard Debian dist-packages so it is always on sys.path
+PYTHON_DIST_PACKAGES="/usr/lib/python3/dist-packages"
 NPROC="$(nproc)"
 
 echo "============================================================"
@@ -78,6 +80,7 @@ cmake \
     -D CMAKE_INSTALL_PREFIX=/usr/local \
     -D BUILD_opencv_python3=ON \
     -D PYTHON3_EXECUTABLE="${PYTHON_BIN}" \
+    -D OPENCV_PYTHON3_INSTALL_PATH="${PYTHON_DIST_PACKAGES}" \
     -D ENABLE_NEON=ON \
     -D CPU_BASELINE="NEON" \
     -D WITH_JPEG=ON \
