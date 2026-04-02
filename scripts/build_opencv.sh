@@ -77,7 +77,6 @@ cmake \
     -D BUILD_opencv_python3=ON \
     -D PYTHON3_EXECUTABLE="${PYTHON_BIN}" \
     -D ENABLE_NEON=ON \
-    -D ENABLE_VFPV3=ON \
     -D CPU_BASELINE="NEON" \
     -D WITH_JPEG=ON \
     -D BUILD_JPEG=OFF \
