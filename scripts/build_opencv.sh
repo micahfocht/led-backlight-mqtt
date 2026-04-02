@@ -21,8 +21,6 @@ OPENCV_VERSION="4.9.0"
 BUILD_DIR="${HOME}/opencv_build"
 PYTHON_BIN="$(which python3)"
 PYTHON_VERSION="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-# Install cv2 into the standard Debian dist-packages so it is always on sys.path
-PYTHON_DIST_PACKAGES="/usr/lib/python3/dist-packages"
 NPROC="$(nproc)"
 
 echo "============================================================"
@@ -80,7 +78,6 @@ cmake \
     -D CMAKE_INSTALL_PREFIX=/usr/local \
     -D BUILD_opencv_python3=ON \
     -D PYTHON3_EXECUTABLE="${PYTHON_BIN}" \
-    -D OPENCV_PYTHON3_INSTALL_PATH="${PYTHON_DIST_PACKAGES}" \
     -D ENABLE_NEON=ON \
     -D CPU_BASELINE="NEON" \
     -D WITH_JPEG=ON \
@@ -109,6 +106,19 @@ make -j"${NPROC}"
 echo "[5/6] Installing to /usr/local..."
 sudo make install
 sudo ldconfig
+
+# On Debian Trixie, /usr/local/lib/python3.x/dist-packages is not on sys.path
+# by default.  Drop a .pth file into the system dist-packages so every Python
+# invocation (interactive, systemd service, etc.) can find cv2 without any
+# extra environment setup.
+CV2_SITE="/usr/local/lib/python${PYTHON_VERSION}/dist-packages"
+PTH_TARGET="/usr/lib/python3/dist-packages/opencv4.pth"
+if [ -d "${CV2_SITE}" ]; then
+    echo "${CV2_SITE}" | sudo tee "${PTH_TARGET}" > /dev/null
+    echo "  Added ${PTH_TARGET} → ${CV2_SITE}"
+else
+    echo "  Warning: expected cv2 site-packages not found at ${CV2_SITE}"
+fi
 
 # ── 6. Verify ─────────────────────────────────────────────────────────────────
 echo "[6/6] Verifying installation..."
