@@ -61,6 +61,8 @@ fi
 
 # ── 3. Configure ──────────────────────────────────────────────────────────────
 echo "[3/6] Configuring CMake..."
+# Wipe any stale CMake cache so previous flag changes take effect cleanly
+rm -rf "${BUILD_DIR}/opencv/build"
 mkdir -p "${BUILD_DIR}/opencv/build"
 cd "${BUILD_DIR}/opencv/build"
 
