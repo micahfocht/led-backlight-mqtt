@@ -3,7 +3,7 @@
 # build_opencv.sh — Build OpenCV from source on Raspberry Pi 5
 #                   with NEON SIMD and libjpeg-turbo acceleration.
 #
-# Tested on: Raspberry Pi 5, Raspberry Pi OS 64-bit (Bookworm)
+# Tested on: Raspberry Pi 5, Raspberry Pi OS 64-bit (Bookworm, Trixie)
 # Build time: ~45 minutes on Pi 5 (all 4 cores)
 #
 # Usage:
@@ -35,12 +35,12 @@ echo "[1/6] Installing system dependencies..."
 sudo apt-get update -y
 sudo apt-get install -y \
     build-essential cmake git pkg-config \
-    libjpeg-turbo8-dev libjpeg-dev \
+    libjpeg62-turbo-dev libjpeg-dev \
     libpng-dev libtiff-dev \
     libavcodec-dev libavformat-dev libswscale-dev libavutil-dev \
     libv4l-dev v4l-utils \
     libxvidcore-dev libx264-dev \
-    libatlas-base-dev liblapacke-dev gfortran \
+    libopenblas-dev liblapacke-dev gfortran \
     python3-dev python3-numpy \
     libhdf5-dev \
     # Headless — no GUI deps needed
