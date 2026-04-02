@@ -16,4 +16,4 @@ paho-mqtt>=2.0
 numpy>=1.26
 
 # Non-Pi only — see note above
-opencv-python-headless>=4.9
+opencv-python-headless>=4.9; platform_machine != 'aarch64'
