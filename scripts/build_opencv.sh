@@ -33,6 +33,7 @@ echo "============================================================"
 # ── 1. System dependencies ────────────────────────────────────────────────────
 echo "[1/6] Installing system dependencies..."
 sudo apt-get update -y
+# Headless build — no GUI deps needed
 sudo apt-get install -y \
     build-essential cmake git pkg-config \
     libjpeg62-turbo-dev libjpeg-dev \
@@ -42,9 +43,7 @@ sudo apt-get install -y \
     libxvidcore-dev libx264-dev \
     libopenblas-dev liblapacke-dev gfortran \
     python3-dev python3-numpy \
-    libhdf5-dev \
-    # Headless — no GUI deps needed
-    ;
+    libhdf5-dev
 
 # ── 2. Clone sources ──────────────────────────────────────────────────────────
 echo "[2/6] Cloning OpenCV ${OPENCV_VERSION}..."
@@ -65,28 +64,25 @@ echo "[3/6] Configuring CMake..."
 mkdir -p "${BUILD_DIR}/opencv/build"
 cd "${BUILD_DIR}/opencv/build"
 
+# Python binding
+# NEON / ARM optimisations (Cortex-A76 on Pi 5)
+# Use libjpeg-turbo for fast MJPEG decode
+# V4L2 capture backend
+# Disable heavy / unused modules to save build time
+# No GUI
+# Extra modules (optional — provides additional algorithms)
 cmake \
     -D CMAKE_BUILD_TYPE=Release \
     -D CMAKE_INSTALL_PREFIX=/usr/local \
-    \
-    # Python binding
     -D BUILD_opencv_python3=ON \
     -D PYTHON3_EXECUTABLE="${PYTHON_BIN}" \
-    \
-    # NEON / ARM optimisations (Cortex-A76 on Pi 5)
     -D ENABLE_NEON=ON \
     -D ENABLE_VFPV3=ON \
     -D CPU_BASELINE="NEON" \
-    \
-    # Use libjpeg-turbo for fast MJPEG decode
     -D WITH_JPEG=ON \
     -D BUILD_JPEG=OFF \
-    \
-    # V4L2 capture backend
     -D WITH_V4L=ON \
     -D WITH_LIBV4L=ON \
-    \
-    # Disable heavy / unused modules to save build time
     -D BUILD_opencv_dnn=OFF \
     -D BUILD_opencv_ml=OFF \
     -D BUILD_opencv_stitching=OFF \
@@ -95,13 +91,9 @@ cmake \
     -D BUILD_EXAMPLES=OFF \
     -D BUILD_TESTS=OFF \
     -D BUILD_PERF_TESTS=OFF \
-    \
-    # No GUI
     -D WITH_GTK=OFF \
     -D WITH_QT=OFF \
     -D WITH_OPENGL=OFF \
-    \
-    # Extra modules (optional — provides additional algorithms)
     -D OPENCV_EXTRA_MODULES_PATH="${BUILD_DIR}/opencv_contrib/modules" \
     ..
 
