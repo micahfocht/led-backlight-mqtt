@@ -120,3 +120,14 @@ wled_outputs:
     brightness: 180
     input: bedroom_tv
     border_pct: ~
+    # Optional: explicitly set how many LEDs are on each edge.
+    # When present, all four fields are required and their sum must equal
+    # led_count (after it is resolved from WLED if led_count is null above).
+    # When absent, LEDs are distributed proportionally to each edge's length.
+    # LED ordering is clockwise starting from the top-left corner:
+    #   top (L→R) → right (T→B) → bottom (R→L) → left (B→T)
+    # led_layout:
+    #   top: 32
+    #   right: 10
+    #   bottom: 32
+    #   left: 10
