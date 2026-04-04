@@ -306,8 +306,10 @@ class TestLedLayout:
         for i in range(2, 23):  # skip the two corner LEDs at each end
             r, g, b = colors[i]
             assert r > 150, f"LED {i} should be top (reddish), got ({r},{g},{b})"
-        # Next 5 LEDs should be from the right (greenish)
-        for i in range(25, 30):
+        # Next 5 LEDs should be from the right (greenish).
+        # Skip LED 29 (last of right strip) — it sits at the bottom-right corner
+        # where the bottom strip overwrites the right strip in _make_edge_frame.
+        for i in range(25, 29):
             r, g, b = colors[i]
             assert g > 150, f"LED {i} should be right (greenish), got ({r},{g},{b})"
 
