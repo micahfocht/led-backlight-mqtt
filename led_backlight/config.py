@@ -115,6 +115,28 @@ class InputConfig(BaseModel):
         return self
 
 
+class LedLayout(BaseModel):
+    """Explicit per-edge LED counts (all four must be provided together).
+
+    LEDs are assigned clockwise starting from the top-left corner:
+    top (L→R) → right (T→B) → bottom (R→L) → left (B→T).
+
+    The sum of all four values must equal the resolved ``led_count`` for the
+    output (whether auto-detected from WLED or set explicitly in config).
+    This validation is deferred to pipeline start-up time when the
+    auto-detected count is known.
+    """
+
+    top: int = Field(gt=0, description="Number of LEDs on the top edge")
+    right: int = Field(gt=0, description="Number of LEDs on the right edge")
+    bottom: int = Field(gt=0, description="Number of LEDs on the bottom edge")
+    left: int = Field(gt=0, description="Number of LEDs on the left edge")
+
+    @property
+    def total(self) -> int:
+        return self.top + self.right + self.bottom + self.left
+
+
 class WledOutputConfig(BaseModel):
     id: str
     host: str
@@ -122,6 +144,14 @@ class WledOutputConfig(BaseModel):
     brightness: int = Field(default=200, ge=0, le=255)
     input: str = Field(description="ID of an input entry — the default at startup")
     border_pct: Optional[float] = Field(default=None, gt=0, le=0.5)
+    led_layout: Optional[LedLayout] = Field(
+        default=None,
+        description=(
+            "Explicit per-edge LED counts. "
+            "When set, overrides the proportional distribution. "
+            "top + right + bottom + left must equal the resolved led_count."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +236,27 @@ class AppConfig(BaseModel):
     def effective_border_pct(self, output_id: str) -> float:
         out = self.get_wled_output(output_id)
         return out.border_pct if out.border_pct is not None else self.globals.border_pct
+
+    def effective_led_layout(
+        self, output_id: str, led_count: int
+    ) -> "tuple[int, int, int, int] | None":
+        """Return ``(n_top, n_right, n_bottom, n_left)`` if ``led_layout`` is
+        configured for *output_id*, else ``None`` (use proportional distribution).
+
+        Raises ``ValueError`` if the layout total does not match *led_count*.
+        """
+        out = self.get_wled_output(output_id)
+        if out.led_layout is None:
+            return None
+        layout = out.led_layout
+        total = layout.total
+        if total != led_count:
+            raise ValueError(
+                f"Output '{output_id}': led_layout total ({total}) does not match "
+                f"resolved led_count ({led_count}). "
+                f"Adjust top/right/bottom/left so they sum to {led_count}."
+            )
+        return (layout.top, layout.right, layout.bottom, layout.left)
 
 
 # ---------------------------------------------------------------------------

@@ -222,6 +222,7 @@ class Pipeline:
 
             border_pct          = config.effective_border_pct(output.id)
             analysis_resolution = config.effective_analysis_resolution(inp.id)
+            led_layout          = config.effective_led_layout(output.id, led_count)
 
             try:
                 colors = sample_border_colors(
@@ -229,6 +230,7 @@ class Pipeline:
                     led_count=led_count,
                     border_pct=border_pct,
                     analysis_resolution=analysis_resolution,
+                    led_layout=led_layout,
                 )
                 sender.send(colors, brightness=brightness)
             except Exception as exc:

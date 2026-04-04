@@ -12,6 +12,10 @@ Algorithm
        right  col  top   → bottom  (indices n_top … n_top+n_right-1)
        bottom row  right → left    (indices …)
        left   col  bottom → top    (indices …)
+
+   The per-edge counts come from ``led_layout`` when provided, otherwise they
+   are computed proportionally to each edge's pixel length (largest-remainder
+   method ensures the total equals ``led_count`` exactly).
 5. For each LED, compute the mean BGR color of its assigned border region,
    then convert to (R, G, B) tuples.
 
@@ -21,7 +25,7 @@ All array operations use NumPy — no Python loops over pixels.
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Literal, Optional
 
 import cv2
 import numpy as np
@@ -65,6 +69,7 @@ def sample_border_colors(
     led_count: int,
     border_pct: float,
     analysis_resolution: tuple[int, int],
+    led_layout: Optional[tuple[int, int, int, int]] = None,
 ) -> list[RGBColor]:
     """Return a list of ``led_count`` (R, G, B) tuples sampled from the
     border of *frame*.
@@ -83,6 +88,11 @@ def sample_border_colors(
         frame.
     analysis_resolution:
         ``(width, height)`` to resize the frame to before sampling.
+    led_layout:
+        Optional ``(n_top, n_right, n_bottom, n_left)`` explicit per-edge
+        counts.  When provided the proportional distribution is skipped and
+        these values are used directly.  The caller is responsible for
+        ensuring ``n_top + n_right + n_bottom + n_left == led_count``.
     """
     if led_count <= 0:
         return []
@@ -96,27 +106,26 @@ def sample_border_colors(
     border_px = max(1, round(border_pct * min(h, w)))
 
     # --- 3. Distribute LEDs around the perimeter ----------------------------
-    # Perimeter segments (clockwise): top, right, bottom, left
-    # Lengths in pixels of each edge at the analysis resolution
-    top_len    = w
-    right_len  = h
-    bottom_len = w
-    left_len   = h
-    perimeter  = top_len + right_len + bottom_len + left_len
+    if led_layout is not None:
+        n_top, n_right, n_bottom, n_left = led_layout
+    else:
+        # Proportional to each edge's pixel length (largest-remainder method)
+        top_len    = w
+        right_len  = h
+        bottom_len = w
+        left_len   = h
+        perimeter  = top_len + right_len + bottom_len + left_len
 
-    # Allocate LEDs proportionally to edge length
-    # We compute cumulative fractions and assign integer LED counts such that
-    # the total equals led_count exactly.
-    fractions   = [top_len, right_len, bottom_len, left_len]
-    raw_counts  = [led_count * f / perimeter for f in fractions]
-    # Floor all, then add remaining 1s to the largest remainders
-    counts      = [int(c) for c in raw_counts]
-    remainders  = [(raw_counts[i] - counts[i], i) for i in range(4)]
-    deficit     = led_count - sum(counts)
-    for _, i in sorted(remainders, reverse=True)[:deficit]:
-        counts[i] += 1
+        fractions   = [top_len, right_len, bottom_len, left_len]
+        raw_counts  = [led_count * f / perimeter for f in fractions]
+        # Floor all, then add remaining 1s to the largest remainders
+        counts      = [int(c) for c in raw_counts]
+        remainders  = [(raw_counts[i] - counts[i], i) for i in range(4)]
+        deficit     = led_count - sum(counts)
+        for _, i in sorted(remainders, reverse=True)[:deficit]:
+            counts[i] += 1
 
-    n_top, n_right, n_bottom, n_left = counts
+        n_top, n_right, n_bottom, n_left = counts
 
     # --- 4. Sample each LED's region ----------------------------------------
     colors: list[RGBColor] = []

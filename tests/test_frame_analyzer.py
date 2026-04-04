@@ -5,6 +5,7 @@ Tests cover:
 - LED count distribution across the four edges
 - Border color sampling (mean BGR → RGB)
 - Clockwise ordering of the LED strand
+- Explicit per-edge LED counts via led_layout
 - Edge cases: 1 LED, uneven LED distribution, tiny frames
 """
 
@@ -254,3 +255,69 @@ class TestClockwiseOrdering:
         n_top = round(40 * 320 / (2 * 320 + 2 * 180))
         r, g, b = colors[n_top]
         assert g > 150, f"First right LED should be greenish; got ({r},{g},{b})"
+
+
+# ---------------------------------------------------------------------------
+# sample_border_colors — explicit led_layout
+# ---------------------------------------------------------------------------
+
+class TestLedLayout:
+    """Verify that an explicit led_layout overrides proportional distribution."""
+
+    def _make_edge_frame(self, w: int = 320, h: int = 180, border: int = 20) -> np.ndarray:
+        """Frame with distinct solid colors on each edge strip."""
+        frame = np.zeros((h, w, 3), dtype=np.uint8)
+        frame[0:border,     :,          :] = (0,   0,   200)  # top   — red
+        frame[:,             w-border:w, :] = (0,   200, 0  )  # right — green
+        frame[h-border:h,   :,          :] = (200, 0,   0  )  # bottom — blue
+        frame[:,             0:border,   :] = (200, 200, 200)  # left  — white
+        return frame
+
+    def test_explicit_layout_total_equals_led_count(self):
+        """led_layout values must sum to led_count; result length must match."""
+        frame = solid_frame(320, 180, (128, 128, 128))
+        layout = (20, 10, 20, 10)  # top, right, bottom, left — total 60
+        colors = sample_border_colors(
+            frame,
+            led_count=60,
+            border_pct=0.1,
+            analysis_resolution=(320, 180),
+            led_layout=layout,
+        )
+        assert len(colors) == 60
+
+    def test_explicit_layout_more_leds_on_top_than_proportional(self):
+        """Setting a high top count forces more LEDs to the top edge."""
+        frame = self._make_edge_frame()
+        # Proportional for 40 LEDs on 320x180 → top ≈ 12.8 → 13 LEDs
+        # Explicit: top=25, right=5, bottom=5, left=5
+        layout = (25, 5, 5, 5)
+        colors = sample_border_colors(
+            frame,
+            led_count=40,
+            border_pct=0.12,
+            analysis_resolution=(320, 180),
+            led_layout=layout,
+        )
+        assert len(colors) == 40
+        # First 25 LEDs should be from the top (reddish)
+        for i in range(25):
+            r, g, b = colors[i]
+            assert r > 150, f"LED {i} should be top (reddish), got ({r},{g},{b})"
+        # Next 5 LEDs should be from the right (greenish)
+        for i in range(25, 30):
+            r, g, b = colors[i]
+            assert g > 150, f"LED {i} should be right (greenish), got ({r},{g},{b})"
+
+    def test_layout_none_matches_old_proportional_behaviour(self):
+        """led_layout=None should produce the same result as omitting it."""
+        frame = solid_frame(320, 180, (80, 160, 240))
+        kwargs = dict(
+            frame=frame,
+            led_count=40,
+            border_pct=0.1,
+            analysis_resolution=(320, 180),
+        )
+        colors_default = sample_border_colors(**kwargs)
+        colors_none    = sample_border_colors(**kwargs, led_layout=None)
+        assert colors_default == colors_none
