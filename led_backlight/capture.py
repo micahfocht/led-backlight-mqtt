@@ -163,7 +163,11 @@ class CaptureThread(threading.Thread):
         while not self._stop_event.is_set():
             t0 = time.monotonic()
 
-            ret, frame = cap.read()
+            try:
+                ret, frame = cap.read()
+            except cv2.error as exc:
+                log.debug("[%s] cap.read() raised cv2.error: %s", cfg.id, exc)
+                ret, frame = False, None
             if not ret or frame is None:
                 consecutive_failures += 1
                 log.warning(
