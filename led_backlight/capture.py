@@ -49,6 +49,9 @@ class CaptureThread(threading.Thread):
         self._queue: queue.Queue[Frame] = queue.Queue(maxsize=1)
         self._stop_event = threading.Event()
         self._cap: "cv2.VideoCapture | None" = None
+        # Set to True by _open_device when MJPG mode is active; tells
+        # _capture_loop to decode the raw JPEG buffer via cv2.imdecode.
+        self._mjpeg_mode: bool = False
 
     # ------------------------------------------------------------------
     # Public API
@@ -108,6 +111,14 @@ class CaptureThread(threading.Thread):
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.height)
         cap.set(cv2.CAP_PROP_FPS, cfg.fps)
 
+        # For MJPEG the V4L2 backend delivers a raw JPEG buffer; disabling the
+        # internal RGB conversion prevents OpenCV from misinterpreting it as a
+        # raw pixel array and causing frame-read failures.  We decode manually
+        # via cv2.imdecode() in the capture loop instead.
+        self._mjpeg_mode = cfg.fourcc.upper() == "MJPG"
+        if self._mjpeg_mode:
+            cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)
+
         # Read back negotiated values and warn on mismatch
         actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -164,11 +175,12 @@ class CaptureThread(threading.Thread):
             t0 = time.monotonic()
 
             try:
-                ret, frame = cap.read()
+                ret, raw = cap.read()
             except cv2.error as exc:
                 log.debug("[%s] cap.read() raised cv2.error: %s", cfg.id, exc)
-                ret, frame = False, None
-            if not ret or frame is None:
+                ret, raw = False, None
+
+            if not ret or raw is None:
                 consecutive_failures += 1
                 log.warning(
                     "[%s] Frame read failed (%d/%d)",
@@ -184,6 +196,29 @@ class CaptureThread(threading.Thread):
                     break
                 time.sleep(0.05)
                 continue
+
+            # In MJPEG mode cap.read() returns a 1-D buffer of JPEG bytes;
+            # decode it to a standard BGR frame via imdecode.
+            if self._mjpeg_mode:
+                frame = cv2.imdecode(raw, cv2.IMREAD_COLOR)
+                if frame is None:
+                    consecutive_failures += 1
+                    log.warning(
+                        "[%s] MJPEG decode failed (%d/%d)",
+                        cfg.id,
+                        consecutive_failures,
+                        max_failures,
+                    )
+                    if consecutive_failures >= max_failures:
+                        log.error(
+                            "[%s] Too many consecutive failures — stopping capture thread",
+                            cfg.id,
+                        )
+                        break
+                    time.sleep(0.05)
+                    continue
+            else:
+                frame = raw
 
             consecutive_failures = 0
 
