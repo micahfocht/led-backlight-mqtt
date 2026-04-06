@@ -25,7 +25,9 @@ The analysis loop:
 3. For each such output:
    a. Extracts the correct quadrant (if applicable).
    b. Samples border colors via ``frame_analyzer``.
-   c. Sends colors via the output's ``WledUdpSender`` (respecting brightness
+   c. If a volume overlay is active (volume changed within the last 3 s),
+      replaces the bottom-edge LED colors with a proportional bar.
+   d. Sends colors via the output's ``WledUdpSender`` (respecting brightness
       and on/off state from ``MqttManager``).
 4. Respects per-input ``max_fps`` by tracking last-analysis timestamps and
    skipping if the minimum inter-frame interval has not elapsed.
@@ -48,6 +50,9 @@ from led_backlight.mqtt_ha import MqttManager
 from led_backlight.wled import WledUdpSender, fetch_led_count
 
 log = logging.getLogger(__name__)
+
+# How long the volume bar stays visible after the last volume change (seconds)
+_VOLUME_BAR_DURATION = 3.0
 
 
 class Pipeline:
@@ -75,6 +80,7 @@ class Pipeline:
             config,
             on_light_change=self._on_light_change,
             on_input_change=self._on_input_change,
+            on_volume_change=self._on_volume_change,
         )
 
         # --- Analysis loop thread --------------------------------------------
@@ -87,6 +93,11 @@ class Pipeline:
         # Per-input last-analyzed timestamps for FPS throttling
         self._last_analyzed: dict[str, float] = {
             inp.id: 0.0 for inp in config.inputs
+        }
+
+        # Per-output volume overlay expiry timestamps (0 = inactive)
+        self._volume_active_until: dict[str, float] = {
+            o.id: 0.0 for o in config.wled_outputs
         }
 
     # ------------------------------------------------------------------
@@ -137,6 +148,11 @@ class Pipeline:
     def _on_input_change(self, output_id: str, input_id: str) -> None:
         # Reset last-analyzed so the new input gets a frame ASAP
         self._last_analyzed[input_id] = 0.0
+
+    def _on_volume_change(self, output_id: str, volume: int, color: tuple[int, int, int]) -> None:
+        """Called from the Paho thread when volume or volume color changes."""
+        self._volume_active_until[output_id] = time.monotonic() + _VOLUME_BAR_DURATION
+        log.debug("[%s] volume overlay activated: %d%% color=%s", output_id, volume, color)
 
     # ------------------------------------------------------------------
     # Analysis loop
@@ -232,8 +248,88 @@ class Pipeline:
                     analysis_resolution=analysis_resolution,
                     led_layout=led_layout,
                 )
+
+                # Apply volume bar overlay if active
+                if time.monotonic() < self._volume_active_until.get(output.id, 0.0):
+                    volume, bar_color = state.snapshot_volume()
+                    layout_tuple = _resolve_led_layout(
+                        led_layout, led_count, analysis_resolution
+                    )
+                    _apply_volume_overlay(colors, layout_tuple, volume, bar_color)
+
                 sender.send(colors, brightness=brightness)
             except Exception as exc:
                 log.error(
                     "[%s] Frame dispatch error: %s", output.id, exc, exc_info=True
                 )
+
+
+# ---------------------------------------------------------------------------
+# Volume overlay helpers (module-level so they can be unit-tested independently)
+# ---------------------------------------------------------------------------
+
+def _resolve_led_layout(
+    led_layout: "tuple[int, int, int, int] | None",
+    led_count: int,
+    analysis_resolution: tuple[int, int],
+) -> tuple[int, int, int, int]:
+    """Return ``(n_top, n_right, n_bottom, n_left)`` for a given output.
+
+    If *led_layout* is already resolved (from config), return it directly.
+    Otherwise mirror the proportional distribution logic from
+    ``frame_analyzer.py`` using the analysis resolution's aspect ratio.
+    """
+    if led_layout is not None:
+        return led_layout
+
+    aw, ah = analysis_resolution
+    w, h = aw, ah
+    perimeter = 2 * w + 2 * h
+    fractions = [w, h, w, h]  # top, right, bottom, left
+    raw_counts = [led_count * f / perimeter for f in fractions]
+    counts = [int(c) for c in raw_counts]
+    remainders = [(raw_counts[i] - counts[i], i) for i in range(4)]
+    deficit = led_count - sum(counts)
+    for _, i in sorted(remainders, reverse=True)[:deficit]:
+        counts[i] += 1
+    n_top, n_right, n_bottom, n_left = counts
+    return (n_top, n_right, n_bottom, n_left)
+
+
+def _apply_volume_overlay(
+    colors: "list[tuple[int, int, int]]",
+    layout: tuple[int, int, int, int],
+    volume: int,
+    bar_color: tuple[int, int, int],
+) -> None:
+    """Mutate *colors* in-place to show a left-to-right volume bar on the bottom edge.
+
+    The bottom edge LEDs run **right→left** in the clockwise LED array.  To
+    produce a bar that fills from the left side of the TV, the lit portion
+    occupies the **last** ``n_lit`` entries of the bottom slice (those closest
+    to the left side of the TV).
+
+    Parameters
+    ----------
+    colors:
+        Full LED color list, modified in-place.
+    layout:
+        ``(n_top, n_right, n_bottom, n_left)`` LED counts.
+    volume:
+        0–100 percentage fill.
+    bar_color:
+        RGB tuple for the lit portion of the bar.
+    """
+    n_top, n_right, n_bottom, _ = layout
+    start = n_top + n_right  # first index of the bottom edge in the array
+
+    n_lit = round(volume / 100 * n_bottom)
+    n_dark = n_bottom - n_lit
+
+    # Dark portion: from the right side of the TV (start of the bottom slice)
+    for i in range(start, start + n_dark):
+        colors[i] = (0, 0, 0)
+
+    # Lit portion: toward the left side of the TV (end of the bottom slice)
+    for i in range(start + n_dark, start + n_bottom):
+        colors[i] = bar_color
